@@ -1,0 +1,59 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python cache & build
+__pycache__/
+*.py[cod]
+*$py.class
+.eggs/
+*.egg-info/
+dist/
+build/
+.python-version
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+.env/
+.env.local
+
+# Coverage, testing, lint
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# Logs
+logs/
+*.log
+
+# Local database files
+# shelftruth.db
+
+
+# Node (if any future UI tooling is added)
+node_modules/
+
+# Generated artifacts
+static/*.map
+
+# Project documentation (excluded per request)
+docs/
+tools/generate_hld_pdf.py
+
+# Mac metadata
+.AppleDouble
+.LSOverride
+
+# Ignore local temp files
+*.tmp
+*.temp
+~$*
