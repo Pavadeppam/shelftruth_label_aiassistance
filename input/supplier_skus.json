@@ -1,0 +1,43 @@
+[
+  {
+    "sku": "SKU001",
+    "name": "Healthy Oats Cereal",
+    "description": "High in fibre, Low fat, Organic",
+    "claims": ["High in fibre", "Low fat", "Organic"],
+    "certificates": ["Lab_Nutrition_Test.pdf", "Soil_Association_Cert.pdf"]
+  },
+  {
+    "sku": "SKU002",
+    "name": "Eco Snack Bar",
+    "description": "100% Natural, Gluten-free",
+    "claims": ["100% Natural", "Gluten-free"],
+    "certificates": ["Lab_Allergen_Test.pdf"]
+  },
+  {
+    "sku": "SKU003",
+    "name": "Protein Energy Drink",
+    "description": "Boosts immunity, Sugar-free",
+    "claims": ["Boosts immunity", "Sugar-free"],
+    "certificates": ["Lab_Nutrition_Test.pdf"],
+    "reason": "‘Boosts immunity’ is a prohibited medical claim under UK rules."
+  },
+  {
+    "sku": "SKU004",
+    "name": "Vegan Chips",
+    "description": "100% Vegan, GMO-free",
+    "claims": ["100% Vegan", "GMO-free"],
+    "certificates": [],
+    "correction_required": "‘100% Vegan’ must be replaced with ‘Suitable for vegans’."
+  },
+  {
+    "sku": "SKU005",
+    "name": "Fairtrade Coffee",
+    "description": "Fairtrade Certified, Carbon Neutral",
+    "claims": ["Fairtrade Certified", "Carbon Neutral"],
+    "approval_path": "Retail Compliance Assistant",
+    "conditions": [
+      "Fairtrade certificate verification",
+      "Carbon Neutral claim must be backed by third-party audit"
+    ]
+  }
+]

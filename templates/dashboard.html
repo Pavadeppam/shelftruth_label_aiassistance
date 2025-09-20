@@ -1,0 +1,697 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ShelfTruth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Main Dashboard Content -->
+    <div class="col-lg-9">
+        <!-- Header Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h2 class="mb-1">Multi-Agent Dashboard</h2>
+                                <p class="text-muted mb-0">Real-time overview of SKU compliance pipeline</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary me-2" onclick="triggerPipeline()">
+                                    <i class="fas fa-play me-1"></i>Trigger Pipeline
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="loadSampleData()">
+                                    <i class="fas fa-database me-1"></i>View Sample Data
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pre-loaded Files (Intake Agent Mimic) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-folder-open me-2"></i>Pre-loaded Files</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2" onclick="refreshPreloadedFiles()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                            <div class="btn-group me-2">
+                                <button class="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-download me-1"></i>Download
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="#" onclick="downloadData('skus')">SKU JSON</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="downloadData('labels')">Label PDFs</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="downloadData('certificates')">Certificate PDFs</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="#" onclick="downloadData('all')">All (ZIP)</a></li>
+                                </ul>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="triggerPipeline()">
+                                <i class="fas fa-upload me-1"></i>Upload & Process
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="preloadedFiles">
+                            <div class="text-muted">Loading sample files...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Overview -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalSkus">0</div>
+                    <div class="metric-label">Total SKUs</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalClaims">0</div>
+                    <div class="metric-label">Claims Extracted</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalDecisions">0</div>
+                    <div class="metric-label">Decisions Made</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="openTasks">0</div>
+                    <div class="metric-label">Open Tasks</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compliance Score -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Compliance Score</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="row">
+                            <div class="col-6">
+                                <canvas id="complianceChart" width="200" height="200"></canvas>
+                            </div>
+                            <div class="col-6 d-flex flex-column justify-content-center">
+                                <h1 class="display-4 mb-0" id="complianceScore">0</h1>
+                                <h3 class="text-muted" id="complianceGrade">N/A</h3>
+                                <p class="text-muted mb-0">Overall Compliance</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-pie-chart me-2"></i>Decision Distribution</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="decisionChart" width="300" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SKU Status Table -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>SKU Status Overview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="skuTable">
+                                <thead>
+                                    <tr>
+                                        <th>SKU Code</th>
+                                        <th>Product Name</th>
+                                        <th>Claims</th>
+                                        <th>Decisions</th>
+                                        <th>Open Tasks</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="skuTableBody">
+                                    <!-- Dynamic content -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Claims Analysis -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-tags me-2"></i>Common Claims</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="commonClaimsList">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-certificate me-2"></i>Certificate Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="certificateChart" width="300" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-3">
+        <div class="sidebar p-3">
+            <!-- Agent Status -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-robot me-2"></i>Agent Status</h6>
+                </div>
+                <div class="card-body">
+                    <div id="agentStatus">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="agent-status agent-active"></span>
+                            <span>Intake Agent</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="agent-status agent-active"></span>
+                            <span>Integration Agent</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="agent-status agent-active"></span>
+                            <span>Claim Extraction Agent</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="agent-status agent-active"></span>
+                            <span>Verification Agent</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="agent-status agent-active"></span>
+                            <span>Decision Agent</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="agent-status agent-active"></span>
+                            <span>Governance Agent</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-clock me-2"></i>Recent Activity</h6>
+                </div>
+                <div class="card-body">
+                    <div id="recentActivity" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="window.location.href='/retail-assistant'">
+                            <i class="fas fa-tasks me-1"></i>Review Tasks
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="window.location.href='/compliance-report'">
+                            <i class="fas fa-file-alt me-1"></i>Generate Report
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="window.location.href='/audit-trail'">
+                            <i class="fas fa-history me-1"></i>View Audit Trail
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sample Data Modal -->
+<div class="modal fade" id="sampleDataModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sample Data Overview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="sampleDataContent">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="triggerPipeline(); bootstrap.Modal.getInstance(document.getElementById('sampleDataModal')).hide();">
+                    Process Sample Data
+                </button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let complianceChart = null;
+let decisionChart = null;
+let certificateChart = null;
+
+// Load dashboard data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    // Auto-load and display sample data in the Pre-loaded Files section
+    loadSampleData(true);
+});
+
+function loadDashboardData() {
+    fetchWithTimeout('/api/dashboard')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                dashboardData = data.data;
+                updateDashboard();
+            } else {
+                showAlert('Error loading dashboard: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading dashboard: ' + error.message, 'danger');
+        });
+}
+
+function updateDashboard() {
+    if (!dashboardData) return;
+
+    // Update metrics
+    document.getElementById('totalSkus').textContent = formatNumber(dashboardData.overview.total_skus);
+    document.getElementById('totalClaims').textContent = formatNumber(dashboardData.overview.total_claims);
+    document.getElementById('totalDecisions').textContent = formatNumber(dashboardData.overview.total_decisions);
+    document.getElementById('openTasks').textContent = formatNumber(dashboardData.overview.open_tasks);
+
+    // Update compliance score
+    const compliance = dashboardData.compliance_score;
+    document.getElementById('complianceScore').textContent = compliance.score + '%';
+    document.getElementById('complianceGrade').textContent = 'Grade: ' + compliance.grade;
+
+    // Update charts
+    updateComplianceChart(compliance.score);
+    updateDecisionChart(dashboardData.verification_results.decisions_by_type);
+    updateCertificateChart(dashboardData.certificate_status.validation_status);
+
+    // Update SKU table
+    updateSkuTable(dashboardData.sku_status);
+
+    // Update common claims
+    updateCommonClaims(dashboardData.claims_analysis.common_claims);
+
+    // Update recent activity
+    updateRecentActivity(dashboardData.audit_trail);
+}
+
+function updateComplianceChart(score) {
+    const ctx = document.getElementById('complianceChart').getContext('2d');
+    
+    if (complianceChart) {
+        complianceChart.destroy();
+    }
+
+    complianceChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [score, 100 - score],
+                backgroundColor: [
+                    score >= 80 ? '#27ae60' : score >= 60 ? '#f39c12' : '#e74c3c',
+                    '#e9ecef'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function updateDecisionChart(decisions) {
+    const ctx = document.getElementById('decisionChart').getContext('2d');
+    
+    if (decisionChart) {
+        decisionChart.destroy();
+    }
+
+    const labels = Object.keys(decisions);
+    const data = Object.values(decisions);
+    const colors = labels.map(label => {
+        switch(label) {
+            case 'PASS': return '#27ae60';
+            case 'FAIL': return '#e74c3c';
+            case 'REVIEW': return '#f39c12';
+            case 'WARNING': return '#17a2b8';
+            default: return '#6c757d';
+        }
+    });
+
+    decisionChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function updateCertificateChart(certStatus) {
+    const ctx = document.getElementById('certificateChart').getContext('2d');
+    
+    if (certificateChart) {
+        certificateChart.destroy();
+    }
+
+    const labels = Object.keys(certStatus);
+    const data = Object.values(certStatus);
+    const colors = labels.map(label => {
+        switch(label) {
+            case 'VALID': return '#27ae60';
+            case 'MISSING': return '#e74c3c';
+            case 'INVALID': return '#f39c12';
+            default: return '#6c757d';
+        }
+    });
+
+    certificateChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 1,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+function updateSkuTable(skuStatus) {
+    const tbody = document.getElementById('skuTableBody');
+    tbody.innerHTML = '';
+
+    skuStatus.forEach(sku => {
+        const row = document.createElement('tr');
+        
+        const statusBadge = getStatusBadge(sku.status);
+        
+        row.innerHTML = `
+            <td><strong>${sku.sku_code}</strong></td>
+            <td>${sku.name}</td>
+            <td><span class="badge bg-info">${sku.claim_count}</span></td>
+            <td><span class="badge bg-primary">${sku.decision_count}</span></td>
+            <td><span class="badge bg-warning">${sku.open_tasks}</span></td>
+            <td>${statusBadge}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewSkuDetails(${sku.sku_id})">
+                    <i class="fas fa-eye"></i>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function getStatusBadge(status) {
+    const statusMap = {
+        'approved': '<span class="badge bg-success">Approved</span>',
+        'rejected': '<span class="badge bg-danger">Rejected</span>',
+        'pending_review': '<span class="badge bg-warning">Pending Review</span>',
+        'processing': '<span class="badge bg-info">Processing</span>'
+    };
+    return statusMap[status] || '<span class="badge bg-secondary">Unknown</span>';
+}
+
+function updateCommonClaims(claims) {
+    const container = document.getElementById('commonClaimsList');
+    container.innerHTML = '';
+
+    claims.slice(0, 5).forEach(claim => {
+        const item = document.createElement('div');
+        item.className = 'd-flex justify-content-between align-items-center mb-2';
+        item.innerHTML = `
+            <span>${claim.claim}</span>
+            <span class="badge bg-secondary">${claim.count}</span>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function updateRecentActivity(auditTrail) {
+    const container = document.getElementById('recentActivity');
+    container.innerHTML = '';
+
+    auditTrail.slice(0, 10).forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'mb-2 p-2 border-start border-3 border-primary';
+        item.innerHTML = `
+            <small class="text-muted">${formatDateTime(entry.timestamp)}</small><br>
+            <strong>${entry.agent_name}</strong><br>
+            <span class="text-muted">${entry.action}</span>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function triggerPipeline() {
+    showLoading('Triggering pipeline...');
+    
+    fetchWithTimeout('/api/trigger-pipeline', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Pipeline executed successfully!', 'success');
+            // Reload dashboard data to reflect updates
+            loadDashboardData();
+            // Also refresh preloaded files view (optional)
+            loadSampleData(true);
+        } else {
+            showAlert('Error executing pipeline: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error executing pipeline: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        // Force-close spinner in case of any missed code path
+        hideLoading(true);
+    });
+}
+
+function loadSampleData(renderInline = false) {
+    fetchWithTimeout('/api/sample-data')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (renderInline) {
+                    renderPreloadedFiles(data.sample_data);
+                } else {
+                    displaySampleData(data.sample_data);
+                }
+            } else {
+                showAlert('Error loading sample data: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading sample data: ' + error.message, 'danger');
+        });
+}
+
+function refreshPreloadedFiles() {
+    loadSampleData(true);
+}
+
+function renderPreloadedFiles(sampleData) {
+    const container = document.getElementById('preloadedFiles');
+    if (!container) return;
+    
+    const skuCount = (sampleData.supplier_skus || []).length;
+    const labelCount = (sampleData.labels || []).length;
+    const certCount = (sampleData.certificates || []).length;
+
+    let html = `
+        <div class="row">
+            <div class="col-md-4">
+                <h6 class="mb-2">SKU JSON <span class="badge bg-secondary">${skuCount}</span></h6>
+                <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                    ${skuCount === 0 ? '<div class="text-muted small">No SKUs found</div>' : ''}
+                    <ul class="list-unstyled mb-0">
+                        ${(sampleData.supplier_skus || []).map(s => `<li class='small'>${s.sku} - ${s.name}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <h6 class="mb-2">Label PDFs <span class="badge bg-secondary">${labelCount}</span></h6>
+                <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                    ${labelCount === 0 ? '<div class="text-muted small">No label PDFs found</div>' : ''}
+                    <ul class="list-unstyled mb-0">
+                        ${(sampleData.labels || []).map(f => `<li class='small'>${f}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <h6 class="mb-2">Certificate PDFs <span class="badge bg-secondary">${certCount}</span></h6>
+                <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                    ${certCount === 0 ? '<div class="text-muted small">No certificate PDFs found</div>' : ''}
+                    <ul class="list-unstyled mb-0">
+                        ${(sampleData.certificates || []).map(f => `<li class='small'>${f}</li>`).join('')}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 d-flex justify-content-end">
+            <button class="btn btn-primary" onclick="triggerPipeline()">
+                <i class="fas fa-upload me-1"></i>Upload & Process
+            </button>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function downloadData(type) {
+    // Trigger browser download to the ZIP endpoint
+    const url = `/api/download?type=${encodeURIComponent(type || 'all')}`;
+    // Use an anchor to avoid popup blockers
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+function displaySampleData(sampleData) {
+    const content = document.getElementById('sampleDataContent');
+    
+    let html = `
+        <div class="row">
+            <div class="col-md-4">
+                <h6>Supplier SKUs (${sampleData.supplier_skus.length})</h6>
+                <ul class="list-group list-group-flush">
+    `;
+    
+    sampleData.supplier_skus.forEach(sku => {
+        html += `<li class="list-group-item">${sku.sku} - ${sku.name}</li>`;
+    });
+    
+    html += `
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h6>Label Files (${sampleData.labels.length})</h6>
+                <ul class="list-group list-group-flush">
+    `;
+    
+    sampleData.labels.forEach(label => {
+        html += `<li class="list-group-item">${label}</li>`;
+    });
+    
+    html += `
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h6>Certificate Files (${sampleData.certificates.length})</h6>
+                <ul class="list-group list-group-flush">
+    `;
+    
+    sampleData.certificates.forEach(cert => {
+        html += `<li class="list-group-item">${cert}</li>`;
+    });
+    
+    html += `
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    content.innerHTML = html;
+    
+    const modal = new bootstrap.Modal(document.getElementById('sampleDataModal'));
+    modal.show();
+}
+
+function viewSkuDetails(skuId) {
+    showAlert('SKU detail view not implemented yet', 'info');
+}
+</script>
+{% endblock %}

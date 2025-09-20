@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Error - ShelfTruth{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                {% if error_code == 404 %}
+                    <i class="fas fa-search fa-3x text-warning mb-3"></i>
+                {% elif error_code == 500 %}
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                {% else %}
+                    <i class="fas fa-info-circle fa-3x text-info mb-3"></i>
+                {% endif %}
+                <h2 class="mb-3">{{ error_code }} Error</h2>
+                <p class="text-muted mb-4">{{ error_message or 'An unexpected error occurred.' }}</p>
+                <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                    <a href="/" class="btn btn-primary"><i class="fas fa-home me-1"></i>Go to Dashboard</a>
+                    <button class="btn btn-outline-secondary" onclick="window.history.back()"><i class="fas fa-arrow-left me-1"></i>Go Back</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Compliance Report - ShelfTruth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="card mb-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">Compliance Report</h2>
+                    <p class="text-muted mb-0">SKU claims, decisions and certificate checks</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="skuSelect" style="min-width: 260px;"></select>
+                    <button class="btn btn-outline-secondary" onclick="loadReport()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="reportContainer">
+            <!-- Dynamic report content -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let skus = [];
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    loadSkus().then(() => loadReport());
+});
+
+function loadSkus() {
+    return fetch('/api/skus')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                skus = data.skus || [];
+                const select = document.getElementById('skuSelect');
+                select.innerHTML = '<option value="">All SKUs</option>' +
+                    skus.map(s => `<option value="${s.id}">${s.sku_code} - ${s.name}</option>`).join('');
+            }
+        });
+}
+
+function loadReport() {
+    showLoading('Generating compliance report...');
+    const skuId = document.getElementById('skuSelect').value;
+    const url = skuId ? `/api/compliance-report?sku_id=${skuId}` : '/api/compliance-report';
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                renderReport(data.report);
+            } else {
+                showAlert('Error generating report: ' + data.error, 'danger');
+            }
+        })
+        .catch(err => {
+            hideLoading();
+            showAlert('Error generating report: ' + err.message, 'danger');
+        });
+}
+
+function renderReport(report) {
+    const container = document.getElementById('reportContainer');
+    const skus = report.skus || {};
+    const skuCodes = Object.keys(skus);
+
+    if (skuCodes.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No data available. Trigger the pipeline from the Dashboard.</div>';
+        return;
+    }
+
+    let html = '';
+
+    skuCodes.forEach(code => {
+        const sku = skus[code];
+        const claims = sku.claims || [];
+
+        html += `
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">${code} - ${sku.name}</h5>
+                        <small class="text-muted">${sku.description || ''}</small>
+                    </div>
+                    <span class="badge bg-secondary">${claims.length} claims</span>
+                </div>
+                <div class="card-body">
+                    ${claims.length === 0 ? '<div class="text-muted">No claims found.</div>' : ''}
+                    ${claims.map(c => renderClaimRow(c)).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function renderClaimRow(c) {
+    const badge = getStatusBadgeClass(c.decision || 'REVIEW');
+    return `
+        <div class="d-flex justify-content-between align-items-start border-bottom py-3">
+            <div>
+                <div><strong>${c.claim_text}</strong> <small class="text-muted">(${c.source || 'unknown'})</small></div>
+                <div class="small text-muted">${c.reasoning || ''}</div>
+            </div>
+            <div class="text-end">
+                <div><span class="badge ${badge}">${c.decision || 'REVIEW'}</span></div>
+                <div class="small text-muted">Cert: ${c.certificate_status || 'N/A'}</div>
+                ${c.task_type ? `<div class="small">Task: <span class="badge bg-light text-dark">${c.task_type}</span> <span class="badge ${getStatusBadgeClass(c.task_status || 'open')}">${c.task_status || ''}</span></div>` : ''}
+            </div>
+        </div>
+    `;
+}
+</script>
+{% endblock %}

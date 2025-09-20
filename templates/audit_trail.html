@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Trail - ShelfTruth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="card mb-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">Audit Trail</h2>
+                    <p class="text-muted mb-0">Traceability across all agents and actions</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="limitSelect" style="width: 180px;">
+                        <option value="50">Last 50</option>
+                        <option value="100" selected>Last 100</option>
+                        <option value="200">Last 200</option>
+                    </select>
+                    <button class="btn btn-outline-secondary" onclick="loadAuditTrail()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Agent</label>
+                        <input type="text" id="agentFilter" class="form-control" placeholder="Filter by agent..." onkeyup="applyFilters()">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Action</label>
+                        <input type="text" id="actionFilter" class="form-control" placeholder="Filter by action..." onkeyup="applyFilters()">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">SKU Code/ID</label>
+                        <input type="text" id="skuFilter" class="form-control" placeholder="Filter by SKU..." onkeyup="applyFilters()">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Events</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Agent</th>
+                                <th>Action</th>
+                                <th>SKU</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTableBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noAuditMessage" class="text-center py-4" style="display:none;">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5>No audit entries to display</h5>
+                    <p class="text-muted">Try increasing the range or trigger the pipeline.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allAudit = [];
+let filteredAudit = [];
+
+// Load on page ready
+document.addEventListener('DOMContentLoaded', function() {
+    loadAuditTrail();
+});
+
+function loadAuditTrail() {
+    const limit = document.getElementById('limitSelect').value || 100;
+    fetchWithTimeout(`/api/audit-log?limit=${limit}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                allAudit = data.audit_log || [];
+                filteredAudit = [...allAudit];
+                renderAuditTable();
+            } else {
+                showAlert('Error loading audit trail: ' + data.error, 'danger');
+            }
+        })
+        .catch(err => {
+            showAlert('Error loading audit trail: ' + err.message, 'danger');
+        });
+}
+
+function applyFilters() {
+    const agentQ = (document.getElementById('agentFilter').value || '').toLowerCase();
+    const actionQ = (document.getElementById('actionFilter').value || '').toLowerCase();
+    const skuQ = (document.getElementById('skuFilter').value || '').toLowerCase();
+
+    filteredAudit = allAudit.filter(item => {
+        const agentMatch = !agentQ || (item.agent_name || '').toLowerCase().includes(agentQ);
+        const actionMatch = !actionQ || (item.action || '').toLowerCase().includes(actionQ);
+        const skuField = String(item.sku_id || '') + ' ' + JSON.stringify(item.details || {});
+        const skuMatch = !skuQ || skuField.toLowerCase().includes(skuQ);
+        return agentMatch && actionMatch && skuMatch;
+    });
+
+    renderAuditTable();
+}
+
+function renderAuditTable() {
+    const tbody = document.getElementById('auditTableBody');
+    const empty = document.getElementById('noAuditMessage');
+
+    tbody.innerHTML = '';
+
+    if (filteredAudit.length === 0) {
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    filteredAudit.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><small>${formatDateTime(item.timestamp)}</small></td>
+            <td>${item.agent_name}</td>
+            <td><span class="badge bg-light text-dark">${item.action}</span></td>
+            <td>${item.sku_id || ''}</td>
+            <td><code class="small">${escapeHtml(JSON.stringify(item.details || {}))}</code></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/\'/g, "&#039;");
+}
+</script>
+{% endblock %}

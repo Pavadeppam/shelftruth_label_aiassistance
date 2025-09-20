@@ -1,0 +1,132 @@
+{
+  "version": "1.0",
+  "generated_on": "2025-09-20",
+  "rules": [
+    {
+      "claim": "High in fibre",
+      "match_type": "exact",
+      "match_value": "High in fibre",
+      "required_cert_types": ["Lab Nutrition Analysis"],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Requires lab nutrition analysis demonstrating fibre threshold."
+    },
+    {
+      "claim": "Low fat",
+      "match_type": "exact",
+      "match_value": "Low fat",
+      "required_cert_types": ["Lab Nutrition Analysis"],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Requires lab nutrition analysis demonstrating fat threshold."
+    },
+    {
+      "claim": "Organic",
+      "match_type": "exact",
+      "match_value": "Organic",
+      "required_cert_types": [
+        "Organic Certification",
+        "Soil Association Certification"
+      ],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Requires recognized organic certifier (Soil Association, OF&G etc.)."
+    },
+    {
+      "claim": "Gluten-free",
+      "match_type": "exact",
+      "match_value": "Gluten-free",
+      "required_cert_types": ["Allergen Lab Test"],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Lab test showing gluten < 20 ppm or accepted allergen report."
+    },
+    {
+      "claim": "100% Natural",
+      "match_type": "exact",
+      "match_value": "100% Natural",
+      "required_cert_types": ["Lab Nutrition Analysis", "Supplier Declaration"],
+      "deterministic_decision": "REVIEW_IF_NO_THIRD_PARTY",
+      "notes": "Supplier self-declaration alone is weak; prefer third-party evidence. Use LLM reasoning for ambiguity."
+    },
+    {
+      "claim": "No MSG",
+      "match_type": "exact",
+      "match_value": "No MSG",
+      "required_cert_types": ["Ingredient Declaration", "Lab Allergen Test"],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Ingredient declaration acceptable; lab can be used if disputed."
+    },
+    {
+      "claim": "FDA Approved",
+      "match_type": "exact",
+      "match_value": "FDA Approved",
+      "required_cert_types": ["Regulatory Approval Doc"],
+      "deterministic_decision": "REVIEW",
+      "notes": "FDA is US authority — usage in UK marketing may be misleading; escalate for human review."
+    },
+    {
+      "claim": "Boosts immunity",
+      "match_type": "exact",
+      "match_value": "Boosts immunity",
+      "required_cert_types": [],
+      "deterministic_decision": "FAIL",
+      "notes": "Prohibited medical/therapeutic claim for foods in the UK; always fail."
+    },
+    {
+      "claim": "Sugar-free",
+      "match_type": "exact",
+      "match_value": "Sugar-free",
+      "required_cert_types": ["Lab Nutrition Analysis"],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Nutrient threshold must be satisfied."
+    },
+    {
+      "claim": "100% Vegan",
+      "match_type": "exact",
+      "match_value": "100% Vegan",
+      "required_cert_types": ["Vegan Conformity Statement"],
+      "deterministic_decision": "WARNING",
+      "remediation": "Replace with 'Suitable for vegans' or provide accredited vegan verification.",
+      "notes": "Prefer wording 'Suitable for vegans'; full '100% Vegan' is strong and may require proof."
+    },
+    {
+      "claim": "GMO-free",
+      "match_type": "exact",
+      "match_value": "GMO-free",
+      "required_cert_types": ["GMO Test Report", "Supplier Declaration"],
+      "deterministic_decision": "PASS_IF_CERT",
+      "notes": "Supplier declaration may be acceptable; lab evidence preferred."
+    },
+    {
+      "claim": "Fairtrade Certified",
+      "match_type": "exact",
+      "match_value": "Fairtrade Certified",
+      "required_cert_types": ["Fairtrade License"],
+      "deterministic_decision": "REVIEW_IF_CERT_MISSING",
+      "notes": "Requires Fairtrade Foundation license check; escalate to human if missing."
+    },
+    {
+      "claim": "Carbon Neutral",
+      "match_type": "exact",
+      "match_value": "Carbon Neutral",
+      "required_cert_types": ["Carbon Neutral Audit", "Third-Party Audit"],
+      "deterministic_decision": "REVIEW_IF_CERT_MISSING",
+      "notes": "Environmental claims require third-party audit or Carbon Trust validation."
+    }
+  ],
+  "scoring": {
+    "weights": {
+      "PASS_IF_CERT": 1,
+      "REVIEW_IF_CERT_MISSING": 0,
+      "FAIL": -5,
+      "WARNING": 0
+    },
+    "thresholds": {
+      "auto_approve_min_score": 1,
+      "manual_review_min_score": 0
+    }
+  },
+  "globals": {
+    "prohibited_claims": ["Boosts immunity", "Cures", "Prevents disease"],
+    "preferred_wording_map": {
+      "100% Vegan": "Suitable for vegans"
+    }
+  }
+}

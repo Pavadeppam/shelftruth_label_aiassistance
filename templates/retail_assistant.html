@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+
+{% block title %}Retail Assistant - ShelfTruth{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-1">Retail Assistant</h2>
+                        <p class="text-muted mb-0">Review and approve SKU compliance decisions</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-success me-2" onclick="bulkApprove()">
+                            <i class="fas fa-check-double me-1"></i>Bulk Approve
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="loadTasks()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh Tasks
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="totalTasks">0</div>
+                    <div class="metric-label">Total Tasks</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="openTasks">0</div>
+                    <div class="metric-label">Open Tasks</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="completedTasks">0</div>
+                    <div class="metric-label">Completed</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="metric-card">
+                    <div class="metric-value" id="completionRate">0%</div>
+                    <div class="metric-label">Completion Rate</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <label for="taskTypeFilter" class="form-label">Task Type</label>
+                        <select class="form-select" id="taskTypeFilter" onchange="filterTasks()">
+                            <option value="">All Types</option>
+                            <option value="review">Review</option>
+                            <option value="approve">Approve</option>
+                            <option value="reject">Reject</option>
+                            <option value="request_evidence">Request Evidence</option>
+                            <option value="modify">Modify</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="skuFilter" class="form-label">SKU Code</label>
+                        <input type="text" class="form-control" id="skuFilter" placeholder="Filter by SKU..." onkeyup="filterTasks()">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="claimFilter" class="form-label">Claim Text</label>
+                        <input type="text" class="form-control" id="claimFilter" placeholder="Filter by claim..." onkeyup="filterTasks()">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                            <i class="fas fa-times me-1"></i>Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks Table -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Pending Tasks</h5>
+                <div>
+                    <input type="checkbox" class="form-check-input me-2" id="selectAll" onchange="toggleSelectAll()">
+                    <label for="selectAll" class="form-check-label">Select All</label>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="tasksTable">
+                        <thead>
+                            <tr>
+                                <th width="50">
+                                    <input type="checkbox" class="form-check-input" id="headerCheckbox">
+                                </th>
+                                <th>Task ID</th>
+                                <th>SKU</th>
+                                <th>Claim</th>
+                                <th>Decision</th>
+                                <th>Task Type</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasksTableBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="noTasksMessage" class="text-center py-4" style="display: none;">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <h4>All tasks completed!</h4>
+                    <p class="text-muted">No pending tasks require your attention at this time.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal fade" id="taskDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Task Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="taskDetailContent">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div id="taskActions">
+                    <!-- Dynamic action buttons -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Decision Modal -->
+<div class="modal fade" id="decisionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="decisionModalTitle">Make Decision</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="decisionForm">
+                    <input type="hidden" id="decisionTaskId">
+                    <input type="hidden" id="decisionAction">
+                    
+                    <div class="mb-3">
+                        <label for="decisionReasoning" class="form-label">Reasoning</label>
+                        <textarea class="form-control" id="decisionReasoning" rows="3" placeholder="Provide reasoning for your decision..."></textarea>
+                    </div>
+                    
+                    <div id="additionalFields">
+                        <!-- Dynamic additional fields based on action -->
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitDecision()">Submit Decision</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allTasks = [];
+let filteredTasks = [];
+let selectedTasks = [];
+
+// Load tasks on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadTasks();
+    loadStatistics();
+});
+
+function loadTasks() {
+    fetchWithTimeout('/api/tasks')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                allTasks = data.tasks;
+                filteredTasks = [...allTasks];
+                updateTasksTable();
+                updateTaskCount();
+            } else {
+                showAlert('Error loading tasks: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error loading tasks: ' + error.message, 'danger');
+        });
+}
+
+function loadStatistics() {
+    fetchWithTimeout('/api/statistics')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateStatistics(data.statistics.tasks);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading statistics:', error);
+        });
+}
+
+function updateStatistics(stats) {
+    document.getElementById('totalTasks').textContent = formatNumber(stats.total_tasks || 0);
+    document.getElementById('openTasks').textContent = formatNumber(stats.status_counts?.open || 0);
+    document.getElementById('completedTasks').textContent = formatNumber(stats.completed_tasks || 0);
+    document.getElementById('completionRate').textContent = Math.round(stats.completion_rate || 0) + '%';
+}
+
+function updateTasksTable() {
+    const tbody = document.getElementById('tasksTableBody');
+    const noTasksMessage = document.getElementById('noTasksMessage');
+    
+    if (filteredTasks.length === 0) {
+        tbody.innerHTML = '';
+        noTasksMessage.style.display = 'block';
+        return;
+    }
+    
+    noTasksMessage.style.display = 'none';
+    tbody.innerHTML = '';
+    
+    filteredTasks.forEach(task => {
+        const row = document.createElement('tr');
+        
+        const decisionBadge = getDecisionBadge(task.decision.decision);
+        const taskTypeBadge = getTaskTypeBadge(task.task_type);
+        
+        row.innerHTML = `
+            <td>
+                <input type="checkbox" class="form-check-input task-checkbox" value="${task.task_id}" onchange="updateSelectedTasks()">
+            </td>
+            <td><strong>#${task.task_id}</strong></td>
+            <td>
+                <strong>${task.sku.sku_code}</strong><br>
+                <small class="text-muted">${task.sku.name}</small>
+            </td>
+            <td>
+                <span class="claim-text">${task.claim.text}</span><br>
+                <small class="text-muted">Source: ${task.claim.source}</small>
+            </td>
+            <td>${decisionBadge}</td>
+            <td>${taskTypeBadge}</td>
+            <td>
+                <small>${formatDateTime(task.created_at)}</small>
+            </td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="viewTaskDetails(${task.task_id})" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-success" onclick="quickApprove(${task.task_id})" title="Quick Approve">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="quickReject(${task.task_id})" title="Quick Reject">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function getDecisionBadge(decision) {
+    const badgeClass = getStatusBadgeClass(decision);
+    return `<span class="badge ${badgeClass}">${decision}</span>`;
+}
+
+function getTaskTypeBadge(taskType) {
+    const typeMap = {
+        'review': '<span class="badge bg-info">Review</span>',
+        'approve': '<span class="badge bg-success">Approve</span>',
+        'reject': '<span class="badge bg-danger">Reject</span>',
+        'request_evidence': '<span class="badge bg-warning">Request Evidence</span>',
+        'modify': '<span class="badge bg-secondary">Modify</span>'
+    };
+    return typeMap[taskType] || `<span class="badge bg-light text-dark">${taskType}</span>`;
+}
+
+function filterTasks() {
+    const typeFilter = document.getElementById('taskTypeFilter').value.toLowerCase();
+    const skuFilter = document.getElementById('skuFilter').value.toLowerCase();
+    const claimFilter = document.getElementById('claimFilter').value.toLowerCase();
+    
+    filteredTasks = allTasks.filter(task => {
+        const matchesType = !typeFilter || task.task_type.toLowerCase().includes(typeFilter);
+        const matchesSku = !skuFilter || task.sku.sku_code.toLowerCase().includes(skuFilter);
+        const matchesClaim = !claimFilter || task.claim.text.toLowerCase().includes(claimFilter);
+        
+        return matchesType && matchesSku && matchesClaim;
+    });
+    
+    updateTasksTable();
+    updateTaskCount();
+}
+
+function clearFilters() {
+    document.getElementById('taskTypeFilter').value = '';
+    document.getElementById('skuFilter').value = '';
+    document.getElementById('claimFilter').value = '';
+    filterTasks();
+}
+
+function updateTaskCount() {
+    const count = filteredTasks.length;
+    // Update any task count displays if needed
+}
+
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.task-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    
+    updateSelectedTasks();
+}
+
+function updateSelectedTasks() {
+    const checkboxes = document.querySelectorAll('.task-checkbox:checked');
+    selectedTasks = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    // Update select all checkbox state
+    const selectAll = document.getElementById('selectAll');
+    const allCheckboxes = document.querySelectorAll('.task-checkbox');
+    
+    if (selectedTasks.length === 0) {
+        selectAll.indeterminate = false;
+        selectAll.checked = false;
+    } else if (selectedTasks.length === allCheckboxes.length) {
+        selectAll.indeterminate = false;
+        selectAll.checked = true;
+    } else {
+        selectAll.indeterminate = true;
+    }
+}
+
+function viewTaskDetails(taskId) {
+    const task = allTasks.find(t => t.task_id === taskId);
+    if (!task) return;
+    
+    const content = document.getElementById('taskDetailContent');
+    content.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>SKU Information</h6>
+                <p><strong>Code:</strong> ${task.sku.sku_code}</p>
+                <p><strong>Name:</strong> ${task.sku.name}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>Task Information</h6>
+                <p><strong>Type:</strong> ${task.task_type}</p>
+                <p><strong>Created:</strong> ${formatDateTime(task.created_at)}</p>
+            </div>
+        </div>
+        
+        <hr>
+        
+        <h6>Claim Details</h6>
+        <p><strong>Text:</strong> ${task.claim.text}</p>
+        <p><strong>Source:</strong> ${task.claim.source}</p>
+        
+        <hr>
+        
+        <h6>Verification Decision</h6>
+        <p><strong>Decision:</strong> <span class="badge ${getStatusBadgeClass(task.decision.decision)}">${task.decision.decision}</span></p>
+        <p><strong>Reasoning:</strong> ${task.decision.reasoning || 'N/A'}</p>
+        
+        <hr>
+        
+        <h6>Task Description</h6>
+        <p>${task.description}</p>
+    `;
+    
+    // Add action buttons
+    const actions = document.getElementById('taskActions');
+    actions.innerHTML = `
+        <button class="btn btn-success me-2" onclick="showDecisionModal(${taskId}, 'approve')">
+            <i class="fas fa-check me-1"></i>Approve
+        </button>
+        <button class="btn btn-danger me-2" onclick="showDecisionModal(${taskId}, 'reject')">
+            <i class="fas fa-times me-1"></i>Reject
+        </button>
+        <button class="btn btn-warning me-2" onclick="showDecisionModal(${taskId}, 'request_evidence')">
+            <i class="fas fa-exclamation-triangle me-1"></i>Request Evidence
+        </button>
+        <button class="btn btn-info" onclick="showDecisionModal(${taskId}, 'modify')">
+            <i class="fas fa-edit me-1"></i>Modify
+        </button>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('taskDetailModal'));
+    modal.show();
+}
+
+function showDecisionModal(taskId, action) {
+    document.getElementById('decisionTaskId').value = taskId;
+    document.getElementById('decisionAction').value = action;
+    document.getElementById('decisionModalTitle').textContent = `${action.charAt(0).toUpperCase() + action.slice(1)} Task`;
+    
+    // Clear previous content
+    document.getElementById('decisionReasoning').value = '';
+    document.getElementById('additionalFields').innerHTML = '';
+    
+    // Add action-specific fields
+    if (action === 'request_evidence') {
+        document.getElementById('additionalFields').innerHTML = `
+            <div class="mb-3">
+                <label for="evidenceRequirements" class="form-label">Evidence Requirements</label>
+                <textarea class="form-control" id="evidenceRequirements" rows="2" placeholder="Specify what evidence is needed..."></textarea>
+            </div>
+        `;
+    } else if (action === 'modify') {
+        document.getElementById('additionalFields').innerHTML = `
+            <div class="mb-3">
+                <label for="newClaimText" class="form-label">New Claim Text</label>
+                <input type="text" class="form-control" id="newClaimText" placeholder="Enter modified claim text...">
+            </div>
+        `;
+    }
+    
+    // Hide task detail modal if open
+    const taskDetailModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailModal'));
+    if (taskDetailModal) {
+        taskDetailModal.hide();
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('decisionModal'));
+    modal.show();
+}
+
+function submitDecision() {
+    const taskId = document.getElementById('decisionTaskId').value;
+    const action = document.getElementById('decisionAction').value;
+    const reasoning = document.getElementById('decisionReasoning').value;
+    
+    const additionalData = {};
+    
+    if (action === 'request_evidence') {
+        const requirements = document.getElementById('evidenceRequirements').value;
+        if (requirements) {
+            additionalData.evidence_requirements = requirements.split(',').map(r => r.trim());
+        }
+    } else if (action === 'modify') {
+        const newClaimText = document.getElementById('newClaimText').value;
+        if (!newClaimText) {
+            showAlert('New claim text is required for modification', 'warning');
+            return;
+        }
+        additionalData.new_claim_text = newClaimText;
+    }
+    
+    fetchWithTimeout(`/api/tasks/${taskId}/decision`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: action,
+            reasoning: reasoning,
+            additional_data: additionalData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`Task ${action}d successfully!`, 'success');
+            
+            // Hide modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('decisionModal'));
+            modal.hide();
+            
+            // Reload tasks
+            loadTasks();
+            loadStatistics();
+        } else {
+            showAlert('Error processing decision: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error processing decision: ' + error.message, 'danger');
+    });
+}
+
+function quickApprove(taskId) {
+    processQuickDecision(taskId, 'approve', 'Quick approval from task list');
+}
+
+function quickReject(taskId) {
+    const reasoning = prompt('Please provide a reason for rejection:');
+    if (reasoning) {
+        processQuickDecision(taskId, 'reject', reasoning);
+    }
+}
+
+function processQuickDecision(taskId, action, reasoning) {
+    fetch(`/api/tasks/${taskId}/decision`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: action,
+            reasoning: reasoning
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`Task ${action}d successfully!`, 'success');
+            loadTasks();
+            loadStatistics();
+        } else {
+            showAlert(`Error ${action}ing task: ` + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert(`Error ${action}ing task: ` + error.message, 'danger');
+    });
+}
+
+function bulkApprove() {
+    if (selectedTasks.length === 0) {
+        showAlert('Please select tasks to approve', 'warning');
+        return;
+    }
+    
+    const reasoning = prompt(`Approve ${selectedTasks.length} selected tasks?\n\nProvide reasoning:`);
+    if (!reasoning) return;
+    
+    fetchWithTimeout('/api/tasks/bulk-approve', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            task_ids: selectedTasks,
+            reasoning: reasoning
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const summary = data.summary;
+            showAlert(`Bulk approval completed: ${summary.successful} successful, ${summary.failed} failed`, 'success');
+            
+            // Clear selections
+            selectedTasks = [];
+            document.getElementById('selectAll').checked = false;
+            
+            // Reload tasks
+            loadTasks();
+            loadStatistics();
+        } else {
+            showAlert('Error in bulk approval: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        showAlert('Error in bulk approval: ' + error.message, 'danger');
+    });
+}
+</script>
+{% endblock %}
