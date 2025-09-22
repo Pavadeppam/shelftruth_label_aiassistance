@@ -37,8 +37,9 @@ export PORT=5001
 python app.py
 
 PORT=5001 .venv/bin/python app.py
-```
 
+venv/Scripts/python app.py # WINDOWS
+```
 Open the app:
 
 - Dashboard: `http://localhost:<PORT>` (e.g., `http://localhost:5001`)
