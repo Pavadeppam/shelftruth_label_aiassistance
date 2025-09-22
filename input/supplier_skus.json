@@ -18,26 +18,20 @@
     "name": "Protein Energy Drink",
     "description": "Boosts immunity, Sugar-free",
     "claims": ["Boosts immunity", "Sugar-free"],
-    "certificates": ["Lab_Nutrition_Test.pdf"],
-    "reason": "‘Boosts immunity’ is a prohibited medical claim under UK rules."
+    "certificates": ["Lab_Nutrition_Test.pdf"]
   },
   {
     "sku": "SKU004",
     "name": "Vegan Chips",
-    "description": "100% Vegan, GMO-free",
-    "claims": ["100% Vegan", "GMO-free"],
-    "certificates": [],
-    "correction_required": "‘100% Vegan’ must be replaced with ‘Suitable for vegans’."
+    "description": "Hundred percent Vegan, GMO-free",
+    "claims": ["Hundred percent Vegan", "GMO-free"],
+    "certificates": []
   },
   {
     "sku": "SKU005",
     "name": "Fairtrade Coffee",
     "description": "Fairtrade Certified, Carbon Neutral",
     "claims": ["Fairtrade Certified", "Carbon Neutral"],
-    "approval_path": "Retail Compliance Assistant",
-    "conditions": [
-      "Fairtrade certificate verification",
-      "Carbon Neutral claim must be backed by third-party audit"
-    ]
+    "certificates": []
   }
 ]

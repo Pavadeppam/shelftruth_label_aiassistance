@@ -61,6 +61,52 @@
                         <div id="preloadedFiles">
                             <div class="text-muted">Loading sample files...</div>
                         </div>
+                        <hr class="my-4">
+                        <h6 class="mb-3"><i class="fas fa-plus-circle me-2"></i>Add New SKU</h6>
+                        <form id="skuUploadForm" onsubmit="event.preventDefault(); uploadNewSku();" enctype="multipart/form-data">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">SKU Code <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="sku" id="skuField" required>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Product Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="name" id="nameField" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Claims (comma-separated)</label>
+                                    <input type="text" class="form-control" name="claims" id="claimsField" placeholder="organic, vegan, gluten-free">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Description</label>
+                                    <textarea class="form-control" name="description" id="descriptionField" rows="2" placeholder="Short product description..."></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Label PDF</label>
+                                    <input type="file" class="form-control" name="label" accept="application/pdf">
+                                    <div class="form-text">Optional. PDF only. Will be saved to <code>input/sku_labels/</code>.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Certificate PDFs</label>
+                                    <input type="file" class="form-control" name="certificates" accept="application/pdf" multiple>
+                                    <div class="form-text">Optional. Multiple PDFs allowed. Saved to <code>input/sku_certificates/</code>.</div>
+                                </div>
+                                <div class="col-12 d-flex align-items-center mt-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="runPipelineCheck" name="run_pipeline" checked>
+                                        <label class="form-check-label" for="runPipelineCheck">
+                                            Run pipeline after upload
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 d-flex justify-content-end gap-2">
+                                <button type="reset" class="btn btn-outline-secondary btn-sm">Clear</button>
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <i class="fas fa-cloud-upload-alt me-1"></i>Save SKU
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -626,6 +672,48 @@ function renderPreloadedFiles(sampleData) {
     `;
     
     container.innerHTML = html;
+}
+
+async function uploadNewSku() {
+    try {
+        const formEl = document.getElementById('skuUploadForm');
+        const fd = new FormData(formEl);
+        // Ensure explicit value when checked for consistent backend parsing
+        if (document.getElementById('runPipelineCheck')?.checked) {
+            if (!fd.has('run_pipeline')) fd.append('run_pipeline', 'on');
+        } else {
+            // If not checked, set to off so backend can detect
+            fd.set('run_pipeline', 'off');
+        }
+
+        const sku = (fd.get('sku') || '').toString().trim();
+        const name = (fd.get('name') || '').toString().trim();
+        if (!sku || !name) {
+            showAlert('Please provide required fields: SKU and Product Name', 'warning');
+            return;
+        }
+
+        showLoading('Uploading SKU...');
+        const resp = await fetchWithTimeout('/api/upload', {
+            method: 'POST',
+            body: fd
+        }, 30000);
+        const data = await resp.json();
+        hideLoading();
+        if (data.success) {
+            showAlert('SKU uploaded successfully. You can now run the pipeline.', 'success');
+            // Clear minimal fields for convenience
+            try { formEl.reset(); } catch (e) {}
+            // Refresh the preloaded files list and dashboard
+            refreshPreloadedFiles();
+            loadDashboardData();
+        } else {
+            showAlert('Upload failed: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    } catch (err) {
+        hideLoading(true);
+        showAlert('Upload error: ' + err.message, 'danger');
+    }
 }
 
 function downloadData(type) {

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import difflib
 from datetime import datetime
 from database.schema import ShelfTruthDB
 
@@ -30,9 +31,34 @@ class VerificationAgent:
         self.agent_name = "Verification Agent"
         self.rules_path = rules_path
         self.rules = self._load_rules()
+        # Load optional semantic alias map from rules.json -> globals.semantic_aliases
+        self.semantic_aliases = {}
+        try:
+            self.semantic_aliases = self.rules.get('globals', {}).get('semantic_aliases', {}) or {}
+        except Exception:
+            self.semantic_aliases = {}
+        # Initialize spaCy (lemmatization) if available
+        self.use_spacy = False
+        self.nlp = None
+        try:
+            import spacy  # type: ignore
+            try:
+                # Prefer small English model for lemmatization
+                self.nlp = spacy.load('en_core_web_sm')
+                self.use_spacy = True
+            except Exception:
+                # Fallback to blank English pipeline (no lemmatizer) but keeps tokenizer
+                self.nlp = spacy.blank('en')
+                # Without lemmatizer, benefits are limited; keep False to avoid false confidence
+                self.use_spacy = False
+        except Exception:
+            self.use_spacy = False
+            self.nlp = None
         self.ml_classifier = None
         self.vectorizer = None
         self._load_or_create_ml_model()
+        # Precompute normalized rule texts for spaCy-aware matching
+        self._rule_norm_cache = self._build_rule_norms()
     
     def _load_rules(self):
         """Load compliance rules from JSON file"""
@@ -274,24 +300,49 @@ class VerificationAgent:
             'certificate_checked': certificate_result['checked'],
             'decision_id': decision_id
         }
-    
+
     def _check_rules(self, claim_text):
-        """Check claim against loaded rules"""
-        claim_lower = claim_text.lower().strip()
-        
+        """Check claim against loaded rules using normalized and semantic matching.
+        Order: spaCy-normalized exact/contains -> regex -> fuzzy fallback.
+        """
+        claim_norm = self._normalize_claim_text(claim_text)
+
+        # 1) spaCy-normalized cached rules: exact/contains
+        if self._rule_norm_cache:
+            for item in self._rule_norm_cache:
+                rule = item['rule']
+                rule_norm = item['norm']
+                match_type = rule.get('match_type', 'exact')
+                matched = False
+                if match_type == 'exact':
+                    matched = claim_norm == rule_norm
+                elif match_type == 'contains':
+                    matched = rule_norm in claim_norm
+                if matched:
+                    return {
+                        'matched': True,
+                        'rule_name': rule.get('claim'),
+                        'decision': rule.get('deterministic_decision'),
+                        'required_certs': rule.get('required_cert_types', []),
+                        'notes': rule.get('notes', ''),
+                        'remediation': rule.get('remediation', '')
+                    }
+
+        # 2) Regex and backup exact/contains on-the-fly
         for rule in self.rules.get('rules', []):
-            rule_claim = rule.get('claim', '').lower()
+            rule_pattern = rule.get('match_value', rule.get('claim', ''))
+            rule_norm = self._normalize_claim_text(rule_pattern)
             match_type = rule.get('match_type', 'exact')
-            
+
             matched = False
             if match_type == 'exact':
-                matched = claim_lower == rule_claim
+                matched = claim_norm == rule_norm
             elif match_type == 'contains':
-                matched = rule_claim in claim_lower
+                matched = rule_norm in claim_norm
             elif match_type == 'regex':
-                pattern = rule.get('match_value', rule_claim)
-                matched = bool(re.search(pattern, claim_lower, re.IGNORECASE))
-            
+                pattern = rule.get('match_value', rule.get('claim', ''))
+                matched = bool(re.search(pattern, claim_text, re.IGNORECASE))
+
             if matched:
                 return {
                     'matched': True,
@@ -301,8 +352,106 @@ class VerificationAgent:
                     'notes': rule.get('notes', ''),
                     'remediation': rule.get('remediation', '')
                 }
-        
+
+        # 3) Fuzzy fallback on normalized strings
+        best = {'ratio': 0.0, 'rule': None}
+        for rule in self.rules.get('rules', []):
+            rule_pattern = rule.get('match_value', rule.get('claim', ''))
+            rule_norm = self._normalize_claim_text(rule_pattern)
+            ratio = difflib.SequenceMatcher(None, claim_norm, rule_norm).ratio()
+            if ratio > best['ratio']:
+                best = {'ratio': ratio, 'rule': rule}
+
+        if best['rule'] is not None and best['ratio'] >= 0.9:
+            rule = best['rule']
+            return {
+                'matched': True,
+                'rule_name': rule.get('claim'),
+                'decision': rule.get('deterministic_decision'),
+                'required_certs': rule.get('required_cert_types', []),
+                'notes': (rule.get('notes', '') + f" [fuzzy match {best['ratio']:.2f}]").strip(),
+                'remediation': rule.get('remediation', '')
+            }
+
         return {'matched': False}
+
+    def _normalize_claim_text(self, text: str) -> str:
+        """Normalize claim text for robust rule matching.
+        - Lowercase, strip
+        - Normalize number-based phrases (e.g., 'hundred percent' -> '100%')
+        - Convert '100 percent' -> '100%'
+        - Normalize hyphenation (e.g., 'gluten free' -> 'gluten-free')
+        - Collapse whitespace
+        """
+        if not text:
+            return ''
+        s = text
+        # If spaCy with lemmatizer is available, lemmatize tokens first to handle morphology
+        if self.use_spacy and self.nlp is not None:
+            try:
+                doc = self.nlp(text)
+                # Use lemma_ where available, otherwise .text
+                s = ' '.join([t.lemma_ if hasattr(t, 'lemma_') and t.lemma_ else t.text for t in doc])
+            except Exception:
+                s = text
+        s = s.lower().strip()
+        # Normalize common textual numbers to numeric percentage
+        # one hundred percent / hundred percent -> 100%
+        s = re.sub(r"\bone\s*hundred\s*percent\b", "100%", s)
+        s = re.sub(r"\bhundred\s*percent\b", "100%", s)
+        # e.g., 100 percent -> 100%
+        s = re.sub(r"\b(\d{1,3})\s*percent\b", r"\1%", s)
+        # Normalize 'per cent' spacing
+        s = re.sub(r"\b(\d{1,3})\s*per\s*cent\b", r"\1%", s)
+        # Normalize hyphenation for common claims
+        s = re.sub(r"\bgluten\s*free\b", "gluten-free", s)
+        s = re.sub(r"\bsugar\s*free\b", "sugar-free", s)
+        s = re.sub(r"\bgmo\s*free\b", "gmo-free", s)
+        s = re.sub(r"\bmsg\s*free\b", "no msg", s)
+        # Apply semantic alias replacements from rules.json if available
+        s = self._apply_semantic_aliases(s)
+        # Collapse multiple spaces
+        s = re.sub(r"\s+", " ", s)
+        return s
+
+    def _build_rule_norms(self):
+        """Precompute normalized rule texts for fast matching.
+        Returns a list of dicts: { 'norm': <normalized_rule_text>, 'rule': <rule_obj> }
+        """
+        cache = []
+        try:
+            for rule in self.rules.get('rules', []):
+                pattern = rule.get('match_value', rule.get('claim', ''))
+                norm = self._normalize_claim_text(pattern)
+                cache.append({'norm': norm, 'rule': rule})
+        except Exception:
+            return []
+        return cache
+
+    def _apply_semantic_aliases(self, s: str) -> str:
+        """Apply semantic alias replacements defined in rules.json globals.semantic_aliases.
+        Replacements are applied case-insensitively.
+        Example in rules.json:
+        {
+          "globals": {
+            "semantic_aliases": {
+              "hundred percent": "100%",
+              "one hundred percent": "100%",
+              "per cent": "%"
+            }
+          }
+        }
+        """
+        if not self.semantic_aliases:
+            return s
+        out = s
+        for src, tgt in self.semantic_aliases.items():
+            if not src:
+                continue
+            # Use regex with word boundaries when the source looks like a word/phrase
+            pattern = re.compile(re.escape(src.lower()), re.IGNORECASE)
+            out = pattern.sub(tgt.lower(), out)
+        return out
     
     def _classify_with_ml(self, claim_text):
         """Classify claim using ML model"""

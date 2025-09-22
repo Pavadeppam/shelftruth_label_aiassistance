@@ -174,12 +174,6 @@ class IntakeAgent:
             with open(supplier_skus_path, 'r') as f:
                 supplier_data = json.load(f)
             
-            # Handle directory name typo gracefully: try alternate certificates directory if missing
-            if not os.path.exists(certificates_dir):
-                alt_dir = certificates_dir.replace("sku_certificates", "sku_cerificates")
-                if os.path.exists(alt_dir):
-                    certificates_dir = alt_dir
-            
             for sku_data in supplier_data:
                 processed_sku = self._process_single_sku(sku_data, labels_dir, certificates_dir)
                 if processed_sku:

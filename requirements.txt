@@ -11,3 +11,6 @@ jinja2==3.1.2
 pdfminer.six==20221105
 PyMuPDF==1.24.8
 easyocr==1.7.1
+
+# NLP
+spacy==3.7.5

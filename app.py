@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 import io
 import zipfile
+from werkzeug.utils import secure_filename
 
 # Import our agents
 from database.schema import ShelfTruthDB
@@ -303,13 +304,8 @@ def api_sample_data():
                 if f.endswith('.pdf')
             ]
         
-        # Check certificates directory
+        # Check certificates directory (standardized)
         certs_dir = 'input/sku_certificates'
-        if not os.path.exists(certs_dir):
-            # Fallback to alternate spelling present in sample data
-            alt_dir = 'input/sku_cerificates'
-            if os.path.exists(alt_dir):
-                certs_dir = alt_dir
         if os.path.exists(certs_dir):
             sample_data['certificates'] = [
                 f for f in os.listdir(certs_dir) 
@@ -356,18 +352,13 @@ def api_download():
                         if fname.lower().endswith('.pdf'):
                             add_file_to_zip(os.path.join(labels_dir, fname), arcname=os.path.join(base_prefix, 'sku_labels', fname))
 
-            # Certificates (handle both spellings)
+            # Certificates
             if download_type in ('certificates', 'all'):
                 certs_dir = os.path.join('input', 'sku_certificates')
-                if not os.path.exists(certs_dir):
-                    alt_dir = os.path.join('input', 'sku_cerificates')
-                    if os.path.exists(alt_dir):
-                        certs_dir = alt_dir
                 if os.path.exists(certs_dir):
-                    subfolder = 'sku_certificates' if 'sku_certificates' in certs_dir else 'sku_cerificates'
                     for fname in os.listdir(certs_dir):
                         if fname.lower().endswith('.pdf'):
-                            add_file_to_zip(os.path.join(certs_dir, fname), arcname=os.path.join(base_prefix, subfolder, fname))
+                            add_file_to_zip(os.path.join(certs_dir, fname), arcname=os.path.join(base_prefix, 'sku_certificates', fname))
 
         memory_file.seek(0)
         filename_map = {
@@ -381,6 +372,139 @@ def api_download():
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    """Upload a new SKU with label and certificate PDFs (multipart/form-data)
+
+    Expected form fields:
+    - sku: string (required)
+    - name: string (required)
+    - description: string (optional)
+    - claims: string (optional, comma-separated)
+    - label: file (PDF, optional)
+    - certificates: files[] (PDFs, optional, multiple)
+    """
+    try:
+        # Ensure input directories exist
+        os.makedirs('input', exist_ok=True)
+        labels_dir = os.path.join('input', 'sku_labels')
+        certs_dir = os.path.join('input', 'sku_certificates')
+        os.makedirs(labels_dir, exist_ok=True)
+        os.makedirs(certs_dir, exist_ok=True)
+
+        sku = request.form.get('sku', '').strip()
+        name = request.form.get('name', '').strip()
+        description = request.form.get('description', '').strip()
+        claims_raw = request.form.get('claims', '').strip()
+
+        if not sku or not name:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required fields: sku and name'
+            }), 400
+
+        # Parse claims (comma-separated -> list)
+        claims = [c.strip() for c in claims_raw.split(',') if c.strip()] if claims_raw else []
+
+        saved_label_filename = None
+        label_file = request.files.get('label')
+        if label_file and label_file.filename:
+            if not label_file.filename.lower().endswith('.pdf'):
+                return jsonify({'success': False, 'error': 'Label must be a PDF'}), 400
+            safe_name = secure_filename(label_file.filename)
+            # Prefix with SKU for easier matching by IntakeAgent
+            prefixed = f"{sku}_{safe_name}"
+            label_path = os.path.join(labels_dir, prefixed)
+            label_file.save(label_path)
+            saved_label_filename = prefixed
+
+        saved_cert_filenames = []
+        # certificates may be provided as single or multiple files under key 'certificates'
+        cert_files = request.files.getlist('certificates') or []
+        for cf in cert_files:
+            if not cf or not cf.filename:
+                continue
+            if not cf.filename.lower().endswith('.pdf'):
+                return jsonify({'success': False, 'error': 'All certificates must be PDFs'}), 400
+            safe_name = secure_filename(cf.filename)
+            prefixed = f"{sku}_{safe_name}"
+            cert_path = os.path.join(certs_dir, prefixed)
+            cf.save(cert_path)
+            saved_cert_filenames.append(prefixed)
+
+        # Append to supplier_skus.json
+        skus_json_path = os.path.join('input', 'supplier_skus.json')
+        skus_data = []
+        if os.path.exists(skus_json_path):
+            try:
+                with open(skus_json_path, 'r') as f:
+                    skus_data = json.load(f)
+                    if not isinstance(skus_data, list):
+                        skus_data = []
+            except Exception:
+                # If file is corrupt, reset to empty list
+                skus_data = []
+
+        new_entry = {
+            'sku': sku,
+            'name': name,
+            'description': description,
+            'claims': claims,
+            # Intake/Integration expect certificate filenames
+            'certificates': saved_cert_filenames
+        }
+        # If a label was uploaded, it's not directly referenced in JSON, but IntakeAgent
+        # finds it by SKU prefix in input/sku_labels/. We still include raw_data consistency.
+
+        skus_data.append(new_entry)
+        with open(skus_json_path, 'w') as f:
+            json.dump(skus_data, f, indent=2)
+
+        # Log audit event
+        db.log_audit('Intake Agent', 'SKU_UPLOADED', None, {
+            'sku': sku,
+            'label_file': saved_label_filename,
+            'certificates': saved_cert_filenames
+        })
+
+        # Check if pipeline should run automatically (default: true)
+        run_pipeline_flag = str(request.form.get('run_pipeline', 'true')).lower() in ('1', 'true', 'yes', 'on')
+
+        if run_pipeline_flag:
+            # Automatically trigger the full pipeline so the UI doesn't need a separate click
+            processed_skus = intake_agent.trigger_pipeline(
+                supplier_skus_path=os.path.join('input', 'supplier_skus.json'),
+                labels_dir=os.path.join('input', 'sku_labels'),
+                certificates_dir=os.path.join('input', 'sku_certificates')
+            )
+            synced_sku_ids = integration_agent.sync_sku_data(processed_skus)
+            extraction_results = claim_extraction_agent.extract_claims_from_skus(synced_sku_ids)
+            verification_results = verification_agent.verify_claims_for_skus(synced_sku_ids)
+
+            return jsonify({
+                'success': True,
+                'message': 'SKU uploaded and pipeline executed successfully',
+                'sku': new_entry,
+                'pipeline': {
+                    'processed_skus': len(processed_skus),
+                    'synced_skus': len(synced_sku_ids),
+                    'extraction': extraction_results,
+                    'verification': verification_results
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'SKU uploaded successfully (pipeline not executed)',
+                'sku': new_entry,
+                'pipeline': None
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.errorhandler(404)
 def not_found(error):

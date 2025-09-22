@@ -20,8 +20,8 @@
     },
     {
       "claim": "Organic",
-      "match_type": "exact",
-      "match_value": "Organic",
+      "match_type": "contains",
+      "match_value": "organic",
       "required_cert_types": [
         "Organic Certification",
         "Soil Association Certification"
@@ -31,8 +31,8 @@
     },
     {
       "claim": "Gluten-free",
-      "match_type": "exact",
-      "match_value": "Gluten-free",
+      "match_type": "contains",
+      "match_value": "gluten-free",
       "required_cert_types": ["Allergen Lab Test"],
       "deterministic_decision": "PASS_IF_CERT",
       "notes": "Lab test showing gluten < 20 ppm or accepted allergen report."
@@ -127,6 +127,16 @@
     "prohibited_claims": ["Boosts immunity", "Cures", "Prevents disease"],
     "preferred_wording_map": {
       "100% Vegan": "Suitable for vegans"
+    },
+    "semantic_aliases": {
+      "hundred percent": "100%",
+      "one hundred percent": "100%",
+      "100 percent": "100%",
+      "100 per cent": "100%",
+      "gluten absent": "gluten-free",
+      "no gluten": "gluten-free",
+      "organically grown": "organic",
+      "sugar free": "sugar-free"
     }
   }
 }

@@ -77,7 +77,7 @@ Note on exclusions:
 1. Open the Dashboard. The “Pre-loaded Files” card shows:
    - `input/supplier_skus.json`
    - `input/sku_labels/*.pdf`
-   - `input/sku_certificates/*.pdf` (also tolerant to `sku_cerificates/` typo)
+   - `input/sku_certificates/*.pdf`
 2. Click “Upload & Process” or “Trigger Pipeline”. This runs:
    - Intake → Integration → Claim Extraction → Verification → Task creation
 3. Open Retail Assistant to approve/reject or request evidence.
@@ -140,7 +140,7 @@ shelftruth_label_aiassistant/
 
 - `supplier_skus.json` – sample SKUs with claims and descriptions
 - `sku_labels/` – product label PDFs
-- `sku_certificates/` (or `sku_cerificates/`) – certificate PDFs
+- `sku_certificates/` – certificate PDFs
 - `rules.json` – compliance rule configuration
 
 ---
