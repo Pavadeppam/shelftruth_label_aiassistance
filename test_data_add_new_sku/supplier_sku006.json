@@ -1,0 +1,7 @@
+{
+  "sku": "SKU006",
+  "name": "Organic Chips",
+  "description": ["100% Natural", "No Gluten"],
+  "claims": ["100% Natural", "gluten absent"],
+  "certificates": ["Lab_Allergen_Test.pdf"]
+}
